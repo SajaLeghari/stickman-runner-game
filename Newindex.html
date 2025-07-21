@@ -1,0 +1,227 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Runner Game - Top & Bottom Tracks</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: sans-serif; overflow: hidden; position: relative; transition: background-color 1s; }
+    canvas { display: block; margin: 0 auto; border: 2px solid #388e3c; background-color: #c8e6c9; transition: background-color 1s; }
+    #scoreBoard {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(255,255,255,0.8);
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 18px;
+      color: #2e7d32;
+      font-weight: bold;
+    }
+    #restartBtn {
+      display: none;
+      position: absolute;
+      top: 80px;
+      left: 10px;
+      background-color: #4caf50;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      font-size: 16px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    #restartBtn:hover {
+      background-color: #388e3c;
+    }
+    .flying-effect {
+      animation: glow 0.6s infinite alternate;
+      filter: drop-shadow(0 0 10px yellow);
+    }
+    @keyframes glow {
+      from { filter: drop-shadow(0 0 5px yellow); }
+      to { filter: drop-shadow(0 0 15px orange); }
+    }
+  </style>
+</head>
+<body>
+<div id="scoreBoard">Score: 0</div>
+<button id="restartBtn" onclick="restartGame()">Restart Game</button>
+<canvas id="gameCanvas" width="800" height="400"></canvas>
+
+<script>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+let gameSpeed = 5;
+let gravity = 0.5;
+let score = 0;
+let gameOver = false;
+let starCount = 0;
+let flying = false;
+let flyTimer = 0;
+let flyControlY = 150;
+
+const runFrames = [
+  "https://i.ibb.co/ZYW3VTp/person-icon.png",
+  "https://i.ibb.co/gzrMvxt/person-run-1.png",
+  "https://i.ibb.co/t4TVTVZ/person-run-2.png"
+];
+let currentRunFrame = 0;
+
+const colors = ["#c8e6c9", "#b2dfdb", "#dcedc8", "#ffe0b2", "#f8bbd0"];
+
+const player = {
+  x: 50,
+  y: 300,
+  width: 40,
+  height: 50,
+  vy: 0,
+  jumping: false,
+  track: "bottom"
+};
+
+const obstacles = [];
+const stars = [];
+
+function spawnObstacle() {
+  const imgs = ["https://i.ibb.co/YT4W3W4/car-obstacle.png", "https://i.ibb.co/QJ1jbcR/truck-obstacle.png", "https://i.ibb.co/1s35Jr7/traffic-cone.png"];
+  const img = new Image();
+  img.src = imgs[Math.floor(Math.random() * imgs.length)];
+  obstacles.push({ x: canvas.width, y: Math.random() < 0.5 ? 330 : 80, width: 40, height: 40, img });
+}
+
+function spawnStar() {
+  const img = new Image();
+  img.src = "https://i.ibb.co/s6qWppM/yellow-star.png";
+  stars.push({ x: canvas.width, y: Math.random() < 0.5 ? 330 : 80, width: 30, height: 30, img });
+}
+
+let frame = 0;
+function update() {
+  if (gameOver) return;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "#a5d6a7";
+  ctx.fillRect(0, 350, canvas.width, 50);
+  ctx.fillRect(0, 50, canvas.width, 50);
+
+  if (flying) {
+    flyTimer--;
+    player.y = flyControlY;
+    if (flyTimer <= 0) {
+      flying = false;
+      player.track = "bottom";
+      player.y = 300;
+    }
+  } else if (player.jumping) {
+    player.vy += gravity;
+    player.y += player.vy;
+    if (player.track === "bottom" && player.y >= 300) {
+      player.y = 300;
+      player.jumping = false;
+      player.vy = 0;
+    }
+    if (player.track === "top" && player.y >= 80) {
+      player.y = 80;
+      player.jumping = false;
+      player.vy = 0;
+    }
+  } else {
+    player.y = player.track === "bottom" ? 300 : 80;
+  }
+
+  const animImg = new Image();
+  animImg.src = runFrames[currentRunFrame];
+  ctx.save();
+  if (flying) ctx.filter = "drop-shadow(0 0 10px yellow)";
+  ctx.drawImage(animImg, player.x, player.y, player.width, player.height);
+  ctx.restore();
+  if (frame % 10 === 0) currentRunFrame = (currentRunFrame + 1) % runFrames.length;
+
+  obstacles.forEach((obs, i) => {
+    obs.x -= gameSpeed;
+    ctx.drawImage(obs.img, obs.x, obs.y, obs.width, obs.height);
+    if (!flying && player.x < obs.x + obs.width && player.x + player.width > obs.x && player.y < obs.y + obs.height && player.y + player.height > obs.y) {
+      gameOver = true;
+      document.getElementById("restartBtn").style.display = "block";
+    }
+  });
+
+  stars.forEach((star, i) => {
+    star.x -= gameSpeed;
+    ctx.drawImage(star.img, star.x, star.y, star.width, star.height);
+    if (player.x < star.x + star.width && player.x + player.width > star.x && player.y < star.y + star.height && player.y + player.height > star.y) {
+      stars.splice(i, 1);
+      score += 5;
+      starCount++;
+      document.getElementById("scoreBoard").innerText = "Score: " + score;
+      if (starCount >= 100 && !flying) {
+        flying = true;
+        flyTimer = 600;
+        starCount = 0;
+      }
+    }
+  });
+
+  if (obstacles.length && obstacles[0].x < -50) {
+    obstacles.shift();
+    score++;
+    document.getElementById("scoreBoard").innerText = "Score: " + score;
+    if (score % 5 === 0) gameSpeed += 0.5;
+  }
+
+  if (frame % 90 === 0) spawnObstacle();
+  if (frame % 300 === 0) spawnStar();
+
+  if (frame % 600 === 0) {
+    const newColor = colors[Math.floor(Math.random() * colors.length)];
+    canvas.style.backgroundColor = newColor;
+    document.body.style.backgroundColor = newColor;
+  }
+
+  frame++;
+  requestAnimationFrame(update);
+}
+
+window.addEventListener("keydown", (e) => {
+  if (gameOver) return;
+  if (e.code === "Space" && !player.jumping && !flying) {
+    player.vy = -10;
+    player.jumping = true;
+  }
+  if ((e.code === "ShiftLeft" || e.code === "ShiftRight") && !flying && !player.jumping) {
+    player.track = player.track === "bottom" ? "top" : "bottom";
+  }
+  if (flying) {
+    if (e.code === "ArrowUp") flyControlY = Math.max(50, flyControlY - 10);
+    if (e.code === "ArrowDown") flyControlY = Math.min(300, flyControlY + 10);
+  }
+});
+
+function restartGame() {
+  obstacles.length = 0;
+  stars.length = 0;
+  score = 0;
+  starCount = 0;
+  gameOver = false;
+  frame = 0;
+  flying = false;
+  flyTimer = 0;
+  flyControlY = 150;
+  player.y = 300;
+  player.vy = 0;
+  player.jumping = false;
+  player.track = "bottom";
+  gameSpeed = 5;
+  currentRunFrame = 0;
+  document.getElementById("scoreBoard").innerText = "Score: 0";
+  document.getElementById("restartBtn").style.display = "none";
+  canvas.style.backgroundColor = "#c8e6c9";
+  document.body.style.backgroundColor = "#f0f0f0";
+  update();
+}
+
+update();
+</script>
+</body>
+</html>
